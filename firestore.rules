@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Deploy with: firebase deploy --only firestore:rules
+// These rules exist ONLY to support real-time listeners (read-only). Every
+// WRITE in this application goes through the Express backend using the
+// Firebase Admin SDK, which bypasses these rules entirely — so all
+// mutation logic, validation, and business rules live server-side.
+//
+// request.auth.token.role comes from the custom claim set when the backend
+// mints a sign-in token via admin.auth().createCustomToken(uid, { role }).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /appointments/{appointmentId} {
+      // Patients never have Firebase Auth accounts in this workflow — there
+      // is no patientId-based rule here. The Access Portal instead uses
+      // REST polling (GET /api/appointments/:id via a guest token checked
+      // by the Express backend), not a client-side Firestore listener, so
+      // guests never touch Firestore directly at all.
+      //
+      // A doctor may see the open broadcast/claim queue
+      // (status == "awaiting_doctor_claim", no owner yet) PLUS any
+      // appointment already assigned to them.
+      allow read: if request.auth != null && (
+                     request.auth.uid == resource.data.doctorId ||
+                     (resource.data.status == 'awaiting_doctor_claim' && request.auth.token.role == 'doctor')
+                   );
+      allow write: if false; // everything goes through /api/appointments
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /services/{serviceId} {
+      // Services are non-sensitive reference data — any signed-in user may
+      // read them (the client also has a REST fallback via /api/services).
+      allow read: if request.auth != null;
+      allow write: if false; // admin-only, via /api/services
+    }
+
+    match /counters/{counterId} {
+      allow read, write: if false; // server-only, via Admin SDK transactions
+    }
+  }
+}

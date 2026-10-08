@@ -7,6 +7,12 @@ const { signGuestToken } = require("../middleware/guestAuth");
 
 const MAX_PIN_ATTEMPTS = 5;
 
+/** Last 9 digits so local (024…) and international (+23324…) forms match. */
+function phoneMatchKey(phone) {
+  const digits = String(phone).replace(/\D/g, "");
+  return digits.slice(-9);
+}
+
 /**
  * Guest-booking appointment lifecycle (no patient account exists at any
  * point — patientId/patientName/patientPhone/patientEmail are plain
@@ -187,9 +193,9 @@ async function guestAccess(req, res) {
 
   try {
     const candidatesSnap = await db.collection("appointments").where("consultationPin", "==", pin.trim()).limit(5).get();
-    const normalizedPhone = phone.trim().replace(/\s+/g, "");
+    const normalizedPhone = phoneMatchKey(phone);
     const match = candidatesSnap.docs.find(
-      (d) => d.data().patientPhone.replace(/\s+/g, "") === normalizedPhone
+      (d) => phoneMatchKey(d.data().patientPhone) === normalizedPhone
     );
 
     if (!match) {

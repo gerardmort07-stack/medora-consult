@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../lib/api";
+import api, { asArray } from "../lib/api";
 import StatusBadge from "../components/StatusBadge";
 import Spinner from "../components/Spinner";
 
@@ -33,10 +33,10 @@ export default function AdminDashboard() {
         api.get("/appointments"),
         api.get("/services/all"),
       ]);
-      setStats(statsRes.data.stats);
-      setUsers(usersRes.data.users);
-      setAppointments(appointmentsRes.data.appointments);
-      setServices(servicesRes.data.services);
+      setStats(statsRes.data?.stats ?? null);
+      setUsers(asArray(usersRes.data?.users));
+      setAppointments(asArray(appointmentsRes.data?.appointments));
+      setServices(asArray(servicesRes.data?.services));
     } catch (err) {
       console.error(err);
     } finally {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "../lib/api";
+import api, { asArray } from "../lib/api";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 import Spinner from "../components/Spinner";
 
@@ -29,9 +29,10 @@ export default function GuestBooking() {
     api
       .get("/services")
       .then(({ data }) => {
-        setServices(data.services);
-        if (data.services.length > 0) {
-          setForm((f) => ({ ...f, serviceId: data.services[0].id }));
+        const list = asArray(data?.services);
+        setServices(list);
+        if (list.length > 0) {
+          setForm((f) => ({ ...f, serviceId: list[0].id }));
         }
       })
       .catch(() => setServices([]))

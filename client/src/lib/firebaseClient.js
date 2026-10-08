@@ -24,9 +24,40 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-export const firestore = getFirestore(app);
-export const firebaseAuth = getAuth(app);
+// Safe initialisation. This module is imported by AuthContext, i.e. before
+// anything renders, so it must NEVER throw at import time — an exception
+// here white-screens the whole app. If the VITE_FIREBASE_* variables were
+// missing at build time, Firebase would throw (auth/invalid-api-key), so we
+// guard for that and degrade gracefully instead.
+const apps = getApps() || [];
+let app = null;
+try {
+  if (apps.length > 0) {
+    app = apps[0];
+  } else if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    console.error(
+      "[firebaseClient] Missing VITE_FIREBASE_* env vars at build time — real-time features disabled."
+    );
+  }
+} catch (err) {
+  console.error("[firebaseClient] Firebase init failed:", err);
+}
+
+let _firestore = null;
+let _auth = null;
+try {
+  if (app) {
+    _firestore = getFirestore(app);
+    _auth = getAuth(app);
+  }
+} catch (err) {
+  console.error("[firebaseClient] Firebase service init failed:", err);
+}
+
+export const firestore = _firestore;
+export const firebaseAuth = _auth;
 
 /**
  * Signs the current user into the Firebase client SDK using a custom token
@@ -35,6 +66,7 @@ export const firebaseAuth = getAuth(app);
  * ever exposing Firebase credentials the client shouldn't have.
  */
 export async function ensureFirebaseAuthSession() {
+  if (!firebaseAuth) throw new Error("Firebase client is not configured.");
   if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
   const { data } = await api.get("/auth/firebase-token");
   const credential = await signInWithCustomToken(firebaseAuth, data.customToken);
@@ -43,7 +75,7 @@ export async function ensureFirebaseAuthSession() {
 
 export async function clearFirebaseAuthSession() {
   try {
-    await signOut(firebaseAuth);
+    if (firebaseAuth) await signOut(firebaseAuth);
   } catch (err) {
     // ignore — best-effort cleanup
   }
@@ -57,6 +89,7 @@ export async function clearFirebaseAuthSession() {
  * string that ResetPassword.jsx reads.
  */
 export function requestPasswordReset(email) {
+  if (!firebaseAuth) return Promise.reject(new Error("Firebase client is not configured."));
   return sendPasswordResetEmail(firebaseAuth, email, {
     url: `${window.location.origin}/reset-password`,
     handleCodeInApp: true,
@@ -68,6 +101,7 @@ export function requestPasswordReset(email) {
  * email address (so the reset page can show "Resetting password for...").
  */
 export function checkPasswordResetCode(oobCode) {
+  if (!firebaseAuth) return Promise.reject(new Error("Firebase client is not configured."));
   return verifyPasswordResetCode(firebaseAuth, oobCode);
 }
 
@@ -75,5 +109,6 @@ export function checkPasswordResetCode(oobCode) {
  * Completes the password reset given a valid oobCode and new password.
  */
 export function confirmPasswordReset(oobCode, newPassword) {
+  if (!firebaseAuth) return Promise.reject(new Error("Firebase client is not configured."));
   return firebaseConfirmPasswordReset(firebaseAuth, oobCode, newPassword);
 }

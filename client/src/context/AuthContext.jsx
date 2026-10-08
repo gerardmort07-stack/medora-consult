@@ -13,7 +13,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const { data } = await api.get("/auth/me");
-      setUser(data.user);
+      setUser(data?.user ?? null);
     } catch (err) {
       setUser(null);
     } finally {

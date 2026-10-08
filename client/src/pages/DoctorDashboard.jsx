@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { firestore, ensureFirebaseAuthSession } from "../lib/firebaseClient";
-import api from "../lib/api";
+import api, { asArray } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import Spinner from "../components/Spinner";
@@ -27,6 +27,12 @@ export default function DoctorDashboard() {
   // (2) appointments already claimed by this doctor and in session.
   useEffect(() => {
     if (!user?.uid) return;
+    if (!firestore) {
+      setListenerError("Live updates are unavailable — showing last-loaded data.");
+      api.get("/appointments/mine").then(({ data }) => setMyAppointments(asArray(data?.appointments).filter((a) => a.status === "in_session"))).catch(() => {});
+      api.get("/appointments/available").then(({ data }) => setIncoming(asArray(data?.appointments))).catch(() => {}).finally(() => setLoading(false));
+      return;
+    }
     let unsubIncoming = () => {};
     let unsubMine = () => {};
     setLoading(true);
@@ -64,7 +70,7 @@ export default function DoctorDashboard() {
         setListenerError("Live updates are unavailable — showing last-loaded data.");
         api
           .get("/appointments/mine")
-          .then(({ data }) => setMyAppointments(data.appointments.filter((a) => a.status === "in_session")))
+          .then(({ data }) => setMyAppointments(asArray(data?.appointments).filter((a) => a.status === "in_session")))
           .catch(() => {});
         fetchAvailableFallback();
       });
@@ -76,7 +82,7 @@ export default function DoctorDashboard() {
     function fetchAvailableFallback() {
       api
         .get("/appointments/available")
-        .then(({ data }) => setIncoming(data.appointments))
+        .then(({ data }) => setIncoming(asArray(data?.appointments)))
         .catch(() => {})
         .finally(() => setLoading(false));
     }
@@ -90,7 +96,7 @@ export default function DoctorDashboard() {
   // Hide anything this doctor has already passed on, without needing an
   // extra Firestore index for a compound "not-array-contains" query.
   const visibleIncoming = useMemo(
-    () => incoming.filter((a) => !(a.passedBy || []).includes(user.uid)),
+    () => incoming.filter((a) => !(a.passedBy || []).includes(user?.uid)),
     [incoming, user.uid]
   );
 

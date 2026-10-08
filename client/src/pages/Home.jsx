@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "../lib/api";
+import api, { asArray } from "../lib/api";
 import DisclaimerBanner from "../components/DisclaimerBanner";
 
 function formatGHS(kobo) {
@@ -14,7 +14,7 @@ export default function Home() {
   useEffect(() => {
     api
       .get("/services")
-      .then(({ data }) => setServices(data.services))
+      .then(({ data }) => setServices(asArray(data?.services)))
       .catch(() => setServices([]))
       .finally(() => setLoadingServices(false));
   }, []);
